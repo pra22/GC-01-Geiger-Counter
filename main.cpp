@@ -9,7 +9,7 @@
 #define CS_PIN D2
 XPT2046_Touchscreen ts(CS_PIN);
 #define TS_MINX 250
-#define TS_MINY 200                            // calibration points for touchscreen
+#define TS_MINY 200                             // calibration points for touchscreen
 #define TS_MAXX 3800
 #define TS_MAXY 3750
 
@@ -70,7 +70,6 @@ int batteryPercent;
 int batteryMapped = 212;             
 
 void ICACHE_RAM_ATTR isr();
-
 
 const unsigned char settingsBitmap[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
