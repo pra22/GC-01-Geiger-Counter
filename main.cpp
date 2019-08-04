@@ -6,7 +6,6 @@
 #include <Fonts/FreeSans12pt7b.h>
 #include "Adafruit_ILI9341.h"
 #include <XPT2046_Touchscreen.h>
-
 #define CS_PIN D2
 XPT2046_Touchscreen ts(CS_PIN);
 #define TS_MINX 250
