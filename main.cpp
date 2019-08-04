@@ -9,7 +9,7 @@
 #define CS_PIN D2
 XPT2046_Touchscreen ts(CS_PIN);
 #define TS_MINX 250
-#define TS_MINY 200 // calibration points for touchscreen
+#define TS_MINY 200                            // calibration points for touchscreen
 #define TS_MAXX 3800
 #define TS_MAXY 3750
 
