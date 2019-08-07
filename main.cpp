@@ -327,11 +327,11 @@ void loop()
       {
         dtostrf(doseRate, 4, 2, dose);       // display two digits after the decimal point if value is less than 10
       }
-      if ((doseRate >= 10) && (doseRate < 100))  
+      else if ((doseRate >= 10) && (doseRate < 100))  
       {
         dtostrf(doseRate, 4, 1, dose);       // display one digit after decimal point when dose is greater than 10
       }
-      if ((doseRate >= 100) && (doseRate < 10000)) 
+      else if ((doseRate >= 100) && (doseRate < 10000)) 
       {
         dtostrf(doseRate, 4, 0, dose);       // whole number only when dose is higher than 100
       }
