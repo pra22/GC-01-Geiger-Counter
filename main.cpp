@@ -274,7 +274,7 @@ void loop()
       batteryMapped = map(batteryPercent, 100, 0, 212, 233);  
 
       tft.fillRect(212, 6, 22, 10, ILI9341_BLACK);
-      tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);
+      tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);  // draws battery icon every second
 
       count[i] = currentCount;
       i++;
@@ -301,7 +301,7 @@ void loop()
         averageCount = currentCount - count[i];  // count[i] stores the value from 60 seconds ago
       }
 
-      averageCount = ((averageCount)/(1 - 0.00000333 * (averageCount)));
+      averageCount = ((averageCount)/(1 - 0.00000333 * (averageCount))); // accounts for dead time of the geiger tube. relevant at high count rates
 
       if (doseUnits == 0)
       {
@@ -315,25 +315,26 @@ void loop()
         totalDose = cumulativeCount / (60 * float(conversionFactor * 10.0));   // 1 mRem == 10 uSv
         doseAdjusted = doseRate * 10.0;
       }
+
+      if (doseAdjusted < 1)
+        doseLevel = 0;                         // determines alert level displayed on homescreen
+      else if (doseAdjusted < alarmThreshold)
+        doseLevel = 1;
+      else
+        doseLevel = 2;
+
       if (doseRate < 10)
       {
         dtostrf(doseRate, 4, 2, dose);       // display two digits after the decimal point if value is less than 10
       }
       if ((doseRate >= 10) && (doseRate < 100))  
       {
-        dtostrf(doseRate, 4, 1, dose);
+        dtostrf(doseRate, 4, 1, dose);       // display one digit after decimal point when dose is greater than 10
       }
       if ((doseRate >= 100) && (doseRate < 10000)) 
       {
-        dtostrf(doseRate, 4, 0, dose);
+        dtostrf(doseRate, 4, 0, dose);       // whole number only when dose is higher than 100
       }
-
-      if (doseAdjusted < 1)
-        doseLevel = 0;
-      else if (doseAdjusted < alarmThreshold)   
-        doseLevel = 1;
-      else
-        doseLevel = 2;
 
       tft.setFont();
       tft.setCursor(75, 122);
@@ -346,7 +347,7 @@ void loop()
       }
       else if (averageCount < 100)
       {
-        tft.fillRect(109, 120, 90, 25, ILI9341_BLACK);
+        tft.fillRect(109, 120, 90, 25, ILI9341_BLACK); 
       }
       else if (averageCount < 1000)
       {
@@ -413,7 +414,7 @@ void loop()
           previousDoseLevel = doseLevel;
         }
       }
-    }
+    }       // end of millis()-controlled loop that runs once every second. The rest of the code on page 1 runs every loop
     if (currentCount > previousCount)
     {
       if (ledSwitch)
@@ -533,7 +534,7 @@ void loop()
       x = map(p.x, TS_MINX, TS_MAXX, 240, 0);
       y = map(p.y, TS_MINY, TS_MAXY, 320, 0);
 
-      if ((x > 6 && x < 71) && (y > 250 && y < 315))        // draw homepage, reset counts and go back
+      if ((x > 6 && x < 71) && (y > 250 && y < 315))        // back button. draw homepage, reset counts and go back
       {
         page = 0;
         drawHomePage();
@@ -541,7 +542,7 @@ void loop()
         previousCount = 0;
         for (int a = 0; a < 60; a++)
         {
-          count[a] = 0;
+          count[a] = 0;                         // counts need to be reset to prevent errorenous readings
         }
         for (int b = 0; b < 4; b++)
         {
