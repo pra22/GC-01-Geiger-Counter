@@ -45,10 +45,10 @@ long previousMillis;
 unsigned long currentMicros;
 unsigned long previousMicros;
 
-int averageCount;
-long currentCount;         // incremented by interrupt
-long previousCount;        // to activate buzzer and LED
-long cumulativeCount;
+long averageCount;
+unsigned long currentCount;         // incremented by interrupt
+unsigned long previousCount;        // to activate buzzer and LED
+unsigned long cumulativeCount;
 float doseRate;
 float totalDose;
 char dose[5];            
@@ -301,7 +301,7 @@ void loop()
         averageCount = currentCount - count[i];  // count[i] stores the value from 60 seconds ago
       }
 
-      averageCount = ((averageCount)/(1 - 0.00000333 * (averageCount))); // accounts for dead time of the geiger tube. relevant at high count rates
+      averageCount = ((averageCount)/(1 - 0.00000333 * float(averageCount))); // accounts for dead time of the geiger tube. relevant at high count rates
 
       if (doseUnits == 0)
       {
