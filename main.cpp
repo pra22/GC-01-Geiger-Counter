@@ -33,7 +33,7 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
 const int interruptPin = 5;
 
-long count[60];
+long count[61];
 long fastCount[4];       // arrays to store running counts
 int i = 0;                         
 int j = 0;
@@ -281,7 +281,7 @@ void loop()
       fastCount[j] = currentCount; // keep concurrent arrays of counts. Use only one depending on user choice
       j++;
 
-      if (i == 60)                                                                                                                                                                                             
+      if (i == 61)                                                                                                                                                                                             
       {
         i = 0;
       }
