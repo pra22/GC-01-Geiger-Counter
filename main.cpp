@@ -1,5 +1,6 @@
 #include <Arduino.h>
 
+#include <EEPROM.h>
 #include "SPI.h"
 #include "Adafruit_GFX.h"
 #include <Fonts/FreeSans9pt7b.h>
@@ -55,21 +56,25 @@ float doseAdjusted;
 
 int doseLevel;            // determines home screen warning signs
 int previousDoseLevel;
-int alarmThreshold = 5;
 
-bool integrationMode = 0;         // 0 = slow, 1 = fast
 bool ledSwitch = 1;
 bool buzzerSwitch = 1;
 bool wasTouched;
+bool integrationMode = 0;         // 0 = slow, 1 = fast
 
-bool doseUnits = 0;               // 0 == uSv/hr, 1 = mR/hr
+bool doseUnits = 0;               // 0 == uSv/hr, 1 = mR/hr  
+int alarmThreshold = 5;
 int conversionFactor = 175;
 
 int x, y;                          // touch points
 
 int batteryInput;
 int batteryPercent;
-int batteryMapped = 212;             
+int batteryMapped = 212;
+
+const int saveUnits = 0;
+const int saveAlertThreshold = 1;        // Addresses for storing settings data in the EEPROM
+const int saveCalibration = 2;
 
 void ICACHE_RAM_ATTR isr();
 
@@ -241,6 +246,12 @@ void setup()
   pinMode(D3, OUTPUT); // LED
   digitalWrite(D3, LOW);
   digitalWrite(D0, LOW);
+
+  EEPROM.begin(512);
+
+  doseUnits = EEPROM.read(saveUnits);
+  alarmThreshold = EEPROM.read(saveAlertThreshold);
+  conversionFactor = EEPROM.read(saveCalibration);
 
   Serial.println("Begin");
   attachInterrupt(interruptPin, isr, FALLING);
@@ -565,9 +576,11 @@ void loop()
       x = map(p.x, TS_MINX, TS_MAXX, 240, 0);
       y = map(p.y, TS_MINY, TS_MAXY, 320, 0);
 
-      if ((x > 6 && x < 71) && (y > 250 && y < 315))
+      if ((x > 6 && x < 71) && (y > 250 && y < 315))     // back button
       {
         page = 1;
+        EEPROM.write(saveUnits, doseUnits);             // save current units to EEPROM during exit. This will be retrieved at startup
+        EEPROM.commit();
         drawSettingsPage();
       }
       else if ((x > 4 && x < 234) && (y > 70 && y < 120))
@@ -616,6 +629,8 @@ void loop()
       if ((x > 6 && x < 71) && (y > 250 && y < 315))
       {
         page = 1;
+        EEPROM.write(saveAlertThreshold, alarmThreshold); 
+        EEPROM.commit();                    // save to EEPROM to be retrieved at startup
         drawSettingsPage();
       }
       else if ((x > 130 && x < 190) && (y > 70 && y < 120))
@@ -655,6 +670,8 @@ void loop()
       if ((x > 6 && x < 71) && (y > 250 && y < 315))
       {
         page = 1;
+        EEPROM.write(saveCalibration, conversionFactor);
+        EEPROM.commit();
         drawSettingsPage();
       }
       else if ((x > 160 && x < 220) && (y > 70 && y < 120))
