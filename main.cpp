@@ -331,9 +331,9 @@ void loop()
       {
         dtostrf(doseRate, 4, 1, dose);       // display one digit after decimal point when dose is greater than 10
       }
-      else if ((doseRate >= 100) && (doseRate < 10000)) 
+      else if ((doseRate >= 100)) 
       {
-        dtostrf(doseRate, 4, 0, dose);       // whole number only when dose is higher than 100
+        dtostrf(doseRate, 4, 0, dose);       // whole numbers only when dose is higher than 100
       }
 
       tft.setFont();
@@ -343,7 +343,7 @@ void loop()
       tft.println(averageCount);         // Display CPM 
       if (averageCount < 10)
       {
-        tft.fillRect(92, 120, 100, 25, ILI9341_BLACK);
+        tft.fillRect(92, 120, 100, 25, ILI9341_BLACK);  // erase numbers that may have been left from previous high readings
       }
       else if (averageCount < 100)
       {
@@ -364,15 +364,15 @@ void loop()
       tft.setCursor(80, 192);
       tft.setTextSize(2);
       tft.setTextColor(ILI9341_WHITE, 0x630C);
-      tft.println(cumulativeCount);
+      tft.println(cumulativeCount);                      // display total counts since reset
 
       tft.setCursor(80, 222);
-      tft.println(totalDose);
+      tft.println(totalDose);                            // display cumulative dose
 
       tft.setCursor(44, 52);
       tft.setTextSize(5);
-      tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND);
-      tft.println(dose);
+      tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND); 
+      tft.println(dose);                                  // display effective dose rate
       tft.setTextSize(1);
 
       if (doseLevel != previousDoseLevel)   // only update alert level if it changed. This prevents flicker
@@ -414,7 +414,7 @@ void loop()
           previousDoseLevel = doseLevel;
         }
       }
-    }       // end of millis()-controlled loop that runs once every second. The rest of the code on page 1 runs every loop
+    }       // end of millis()-controlled block that runs once every second. The rest of the code on page 0 runs every loop
     if (currentCount > previousCount)
     {
       if (ledSwitch)
