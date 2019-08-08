@@ -580,8 +580,11 @@ void loop()
       if ((x > 6 && x < 71) && (y > 250 && y < 315))     // back button
       {
         page = 1;
-        EEPROM.write(saveUnits, doseUnits);             // save current units to EEPROM during exit. This will be retrieved at startup
-        EEPROM.commit();
+        if (EEPROM.read(saveUnits) != doseUnits)         // check current EEPROM value and only write if new value is different
+        {
+          EEPROM.write(saveUnits, doseUnits);             // save current units to EEPROM during exit. This will be retrieved at startup
+          EEPROM.commit();
+        }
         drawSettingsPage();
       }
       else if ((x > 4 && x < 234) && (y > 70 && y < 120))
@@ -630,8 +633,11 @@ void loop()
       if ((x > 6 && x < 71) && (y > 250 && y < 315))
       {
         page = 1;
-        EEPROM.write(saveAlertThreshold, alarmThreshold); 
-        EEPROM.commit();                    // save to EEPROM to be retrieved at startup
+        if (EEPROM.read(saveAlertThreshold) != alarmThreshold)
+        {
+          EEPROM.write(saveAlertThreshold, alarmThreshold); 
+          EEPROM.commit();                    // save to EEPROM to be retrieved at startup
+        }
         drawSettingsPage();
       }
       else if ((x > 130 && x < 190) && (y > 70 && y < 120))
@@ -671,8 +677,11 @@ void loop()
       if ((x > 6 && x < 71) && (y > 250 && y < 315))
       {
         page = 1;
-        EEPROM.write(saveCalibration, conversionFactor);
-        EEPROM.commit();
+        if (EEPROM.read(saveCalibration) != conversionFactor)
+        {
+          EEPROM.write(saveCalibration, conversionFactor);
+          EEPROM.commit();
+        }
         drawSettingsPage();
       }
       else if ((x > 160 && x < 220) && (y > 70 && y < 120))
