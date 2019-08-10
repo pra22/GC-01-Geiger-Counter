@@ -340,6 +340,12 @@ void loop()
         dtostrf(doseRate, 4, 0, dose); // whole numbers only when dose is higher than 100
       }
 
+      tft.setCursor(44, 52);
+      tft.setTextSize(5);
+      tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND);
+      tft.println(dose); // display effective dose rate
+      tft.setTextSize(1);
+
       tft.setFont();
       tft.setCursor(75, 122);
       tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
@@ -372,12 +378,6 @@ void loop()
 
       tft.setCursor(80, 222);
       tft.println(totalDose); // display cumulative dose
-
-      tft.setCursor(44, 52);
-      tft.setTextSize(5);
-      tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND);
-      tft.println(dose); // display effective dose rate
-      tft.setTextSize(1);
 
       if (doseLevel != previousDoseLevel) // only update alert level if it changed. This prevents flicker
       {
