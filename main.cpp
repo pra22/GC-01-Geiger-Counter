@@ -1,5 +1,10 @@
+/*  SBM-20 based Geiger Counter
+    Author: Prabhat    Email: pra22@pitt.edu
+    Sketch for ESP8266 that counts clicks from the Geiger tube, calculates the counts per minute, and displays information 
+    on a TFT touchscreen.
+    Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+*/
 #include <Arduino.h>
-
 #include <EEPROM.h>
 #include "SPI.h"
 #include "Adafruit_GFX.h"
@@ -12,7 +17,7 @@
 XPT2046_Touchscreen ts(CS_PIN);
 
 #define TS_MINX 250
-#define TS_MINY 200                             // calibration points for touchscreen
+#define TS_MINY 200 // calibration points for touchscreen
 #define TS_MAXX 3800
 #define TS_MAXY 3750
 
@@ -34,8 +39,8 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 const int interruptPin = 5;
 
 long count[61];
-long fastCount[4];       // arrays to store running counts
-int i = 0;                         
+long fastCount[4]; // arrays to store running counts
+int i = 0;         // array elements
 int j = 0;
 
 int page = 0;
@@ -46,34 +51,34 @@ unsigned long currentMicros;
 unsigned long previousMicros;
 
 long averageCount;
-unsigned long currentCount;         // incremented by interrupt
-unsigned long previousCount;        // to activate buzzer and LED
+unsigned long currentCount;  // incremented by interrupt
+unsigned long previousCount; // to activate buzzer and LED
 unsigned long cumulativeCount;
 float doseRate;
 float totalDose;
-char dose[5];            
-float doseAdjusted;            
+char dose[5];
+float doseAdjusted;
 
-int doseLevel;            // determines home screen warning signs
+int doseLevel;               // determines home screen warning signs
 int previousDoseLevel;
 
 bool ledSwitch = 1;
 bool buzzerSwitch = 1;
 bool wasTouched;
-bool integrationMode = 0;         // 0 = slow, 1 = fast
+bool integrationMode = 0; // 0 = slow, 1 = fast
 
-bool doseUnits = 0;               // 0 == uSv/hr, 1 = mR/hr  
+bool doseUnits = 0; // 0 = Sievert, 1 = Rem
 int alarmThreshold = 5;
 int conversionFactor = 175;
 
-int x, y;                          // touch points
+int x, y; // touch points
 
 int batteryInput;
 int batteryPercent;
-int batteryMapped = 212;
+int batteryMapped = 212;       // pixel location of battery icon
 
 const int saveUnits = 0;
-const int saveAlertThreshold = 1;        // Addresses for storing settings data in the EEPROM
+const int saveAlertThreshold = 1; // Addresses for storing settings data in the EEPROM
 const int saveCalibration = 2;
 
 void ICACHE_RAM_ATTR isr();
@@ -186,45 +191,44 @@ const unsigned char ledOffBitmap[] PROGMEM = {
     0x00, 0x00, 0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xe0,
     0x00, 0x00, 0x00, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00};
 
-const unsigned char backBitmap [] PROGMEM = {
-	0x00, 0x00, 0x00, 0x1f, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xff, 0xc0, 0x00, 
-	0x00, 0x00, 0x00, 0x00, 0x0f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xff, 
-	0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x00, 0x01, 0xff, 
-	0x80, 0x00, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x07, 0xfc, 0x00, 0x00, 0x1f, 0xf0, 0x00, 0x00, 0x00, 
-	0x0f, 0xf0, 0x00, 0x00, 0x07, 0xf8, 0x00, 0x00, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x01, 0xfc, 0x00, 
-	0x00, 0x00, 0x3f, 0x80, 0x00, 0x00, 0x00, 0xfe, 0x00, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00, 
-	0x3f, 0x00, 0x00, 0x00, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x80, 0x00, 0x01, 0xf8, 0x00, 0x00, 
-	0x00, 0x00, 0x0f, 0xc0, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x07, 0xe0, 0x00, 0x03, 0xe0, 
-	0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf0, 0x00, 
-	0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf8, 0x00, 0x0f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 
-	0xf8, 0x00, 0x1f, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x1f, 0x00, 0x00, 0x1f, 0x00, 
-	0x00, 0x00, 0x7c, 0x00, 0x3e, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x3e, 0x00, 0x00, 
-	0x7e, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x3c, 0x00, 0x00, 0xfe, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x7c, 
-	0x00, 0x01, 0xfc, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x7c, 0x00, 0x03, 0xf8, 0x00, 0x00, 0x00, 0x1f, 
-	0x00, 0x78, 0x00, 0x07, 0xf0, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x78, 0x00, 0x0f, 0xe0, 0x00, 0x00, 
-	0x00, 0x0f, 0x00, 0xf8, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x3f, 0x80, 
-	0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 
-	0xff, 0xff, 0xff, 0xff, 0x00, 0x0f, 0x80, 0xf8, 0x01, 0xff, 0xff, 0xff, 0xff, 0x80, 0x0f, 0x80, 
-	0xf8, 0x01, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x07, 0x80, 0xf8, 0x01, 0xff, 0xff, 0xff, 0xff, 0x80, 
-	0x0f, 0x80, 0xf8, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x7e, 0x00, 0x00, 
-	0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x3f, 0x80, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x1f, 
-	0x80, 0x00, 0x00, 0x00, 0x0f, 0x80, 0x78, 0x00, 0x0f, 0xe0, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x78, 
-	0x00, 0x07, 0xe0, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x7c, 0x00, 0x03, 0xf8, 0x00, 0x00, 0x00, 0x1f, 
-	0x00, 0x7c, 0x00, 0x01, 0xf8, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x3c, 0x00, 0x00, 0xfe, 0x00, 0x00, 
-	0x00, 0x1e, 0x00, 0x3e, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x3e, 0x00, 0x00, 0x3f, 
-	0x00, 0x00, 0x00, 0x3e, 0x00, 0x1f, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x1f, 0x00, 
-	0x00, 0x0e, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x0f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x00, 
-	0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01, 
-	0xf0, 0x00, 0x03, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00, 
-	0x00, 0x07, 0xe0, 0x00, 0x01, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0xfc, 0x00, 
-	0x00, 0x00, 0x00, 0x1f, 0x80, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 
-	0x3f, 0x80, 0x00, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x01, 0xfc, 0x00, 
-	0x00, 0x00, 0x0f, 0xf0, 0x00, 0x00, 0x07, 0xf8, 0x00, 0x00, 0x00, 0x07, 0xfc, 0x00, 0x00, 0x1f, 
-	0xf0, 0x00, 0x00, 0x00, 0x03, 0xff, 0x80, 0x00, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 
-	0x7f, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 
-	0x0f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 
-	0x00, 0x00, 0x00, 0x1f, 0xfc, 0x00, 0x00, 0x00, 0x00
-};
+const unsigned char backBitmap[] PROGMEM = {
+    0x00, 0x00, 0x00, 0x1f, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xff, 0xc0, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x0f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xff,
+    0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x00, 0x01, 0xff,
+    0x80, 0x00, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x07, 0xfc, 0x00, 0x00, 0x1f, 0xf0, 0x00, 0x00, 0x00,
+    0x0f, 0xf0, 0x00, 0x00, 0x07, 0xf8, 0x00, 0x00, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x01, 0xfc, 0x00,
+    0x00, 0x00, 0x3f, 0x80, 0x00, 0x00, 0x00, 0xfe, 0x00, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00,
+    0x3f, 0x00, 0x00, 0x00, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x80, 0x00, 0x01, 0xf8, 0x00, 0x00,
+    0x00, 0x00, 0x0f, 0xc0, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x07, 0xe0, 0x00, 0x03, 0xe0,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf0, 0x00,
+    0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf8, 0x00, 0x0f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xf8, 0x00, 0x1f, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x1f, 0x00, 0x00, 0x1f, 0x00,
+    0x00, 0x00, 0x7c, 0x00, 0x3e, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x3e, 0x00, 0x00,
+    0x7e, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x3c, 0x00, 0x00, 0xfe, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x7c,
+    0x00, 0x01, 0xfc, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x7c, 0x00, 0x03, 0xf8, 0x00, 0x00, 0x00, 0x1f,
+    0x00, 0x78, 0x00, 0x07, 0xf0, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x78, 0x00, 0x0f, 0xe0, 0x00, 0x00,
+    0x00, 0x0f, 0x00, 0xf8, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x3f, 0x80,
+    0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00,
+    0xff, 0xff, 0xff, 0xff, 0x00, 0x0f, 0x80, 0xf8, 0x01, 0xff, 0xff, 0xff, 0xff, 0x80, 0x0f, 0x80,
+    0xf8, 0x01, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x07, 0x80, 0xf8, 0x01, 0xff, 0xff, 0xff, 0xff, 0x80,
+    0x0f, 0x80, 0xf8, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x7e, 0x00, 0x00,
+    0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x3f, 0x80, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xf8, 0x00, 0x1f,
+    0x80, 0x00, 0x00, 0x00, 0x0f, 0x80, 0x78, 0x00, 0x0f, 0xe0, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x78,
+    0x00, 0x07, 0xe0, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x7c, 0x00, 0x03, 0xf8, 0x00, 0x00, 0x00, 0x1f,
+    0x00, 0x7c, 0x00, 0x01, 0xf8, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x3c, 0x00, 0x00, 0xfe, 0x00, 0x00,
+    0x00, 0x1e, 0x00, 0x3e, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x3e, 0x00, 0x00, 0x3f,
+    0x00, 0x00, 0x00, 0x3e, 0x00, 0x1f, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x1f, 0x00,
+    0x00, 0x0e, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x0f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x00,
+    0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0xf0, 0x00, 0x03, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00,
+    0x00, 0x07, 0xe0, 0x00, 0x01, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0xfc, 0x00,
+    0x00, 0x00, 0x00, 0x1f, 0x80, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00,
+    0x3f, 0x80, 0x00, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x1f, 0xc0, 0x00, 0x00, 0x01, 0xfc, 0x00,
+    0x00, 0x00, 0x0f, 0xf0, 0x00, 0x00, 0x07, 0xf8, 0x00, 0x00, 0x00, 0x07, 0xfc, 0x00, 0x00, 0x1f,
+    0xf0, 0x00, 0x00, 0x00, 0x03, 0xff, 0x80, 0x00, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff,
+    0x7f, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x1f, 0xfc, 0x00, 0x00, 0x00, 0x00};
 
 void drawHomePage();
 void drawSettingsPage();
@@ -261,27 +265,27 @@ void setup()
 
 void loop()
 {
-  if (page == 0)                 // homepage
-  { 
+  if (page == 0) // homepage
+  {
     currentMillis = millis();
-    if (currentMillis - previousMillis >= 1000) 
+    if (currentMillis - previousMillis >= 1000)
     {
       previousMillis = currentMillis;
 
       batteryInput = analogRead(A0);
       batteryInput = constrain(batteryInput, 670, 870);
       batteryPercent = map(batteryInput, 670, 870, 0, 100);
-      batteryMapped = map(batteryPercent, 100, 0, 212, 233);  
+      batteryMapped = map(batteryPercent, 100, 0, 212, 233);
 
       tft.fillRect(212, 6, 22, 10, ILI9341_BLACK);
-      tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);  // draws battery icon every second
+      tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN); // draws battery icon every second
 
       count[i] = currentCount;
       i++;
       fastCount[j] = currentCount; // keep concurrent arrays of counts. Use only one depending on user choice
       j++;
 
-      if (i == 61)                                                                                                                                                                                             
+      if (i == 61)
       {
         i = 0;
       }
@@ -293,15 +297,15 @@ void loop()
 
       if (integrationMode == 1)
       {
-        averageCount = (currentCount - fastCount[j]) * 20;  
+        averageCount = (currentCount - fastCount[j]) * 20;
       }
 
       else
       {
-        averageCount = currentCount - count[i];  // count[i] stores the value from 60 seconds ago
+        averageCount = currentCount - count[i]; // count[i] stores the value from 60 seconds ago
       }
 
-      averageCount = ((averageCount)/(1 - 0.00000333 * float(averageCount))); // accounts for dead time of the geiger tube. relevant at high count rates
+      averageCount = ((averageCount) / (1 - 0.00000333 * float(averageCount))); // accounts for dead time of the geiger tube. relevant at high count rates
 
       if (doseUnits == 0)
       {
@@ -310,14 +314,14 @@ void loop()
         doseAdjusted = doseRate;
       }
       else if (doseUnits == 1)
-      {        
+      {
         doseRate = averageCount / float(conversionFactor * 10.0);
-        totalDose = cumulativeCount / (60 * float(conversionFactor * 10.0));   // 1 mRem == 10 uSv
+        totalDose = cumulativeCount / (60 * float(conversionFactor * 10.0)); // 1 mRem == 10 uSv
         doseAdjusted = doseRate * 10.0;
       }
 
       if (doseAdjusted < 1)
-        doseLevel = 0;                         // determines alert level displayed on homescreen
+        doseLevel = 0; // determines alert level displayed on homescreen
       else if (doseAdjusted < alarmThreshold)
         doseLevel = 1;
       else
@@ -325,29 +329,29 @@ void loop()
 
       if (doseRate < 10)
       {
-        dtostrf(doseRate, 4, 2, dose);       // display two digits after the decimal point if value is less than 10
+        dtostrf(doseRate, 4, 2, dose); // display two digits after the decimal point if value is less than 10
       }
-      else if ((doseRate >= 10) && (doseRate < 100))  
+      else if ((doseRate >= 10) && (doseRate < 100))
       {
-        dtostrf(doseRate, 4, 1, dose);       // display one digit after decimal point when dose is greater than 10
+        dtostrf(doseRate, 4, 1, dose); // display one digit after decimal point when dose is greater than 10
       }
-      else if ((doseRate >= 100)) 
+      else if ((doseRate >= 100))
       {
-        dtostrf(doseRate, 4, 0, dose);       // whole numbers only when dose is higher than 100
+        dtostrf(doseRate, 4, 0, dose); // whole numbers only when dose is higher than 100
       }
 
       tft.setFont();
       tft.setCursor(75, 122);
       tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
       tft.setTextSize(3);
-      tft.println(averageCount);         // Display CPM 
+      tft.println(averageCount); // Display CPM
       if (averageCount < 10)
       {
-        tft.fillRect(92, 120, 100, 25, ILI9341_BLACK);  // erase numbers that may have been left from previous high readings
+        tft.fillRect(92, 120, 100, 25, ILI9341_BLACK); // erase numbers that may have been left from previous high readings
       }
       else if (averageCount < 100)
       {
-        tft.fillRect(109, 120, 90, 25, ILI9341_BLACK); 
+        tft.fillRect(109, 120, 90, 25, ILI9341_BLACK);
       }
       else if (averageCount < 1000)
       {
@@ -364,18 +368,18 @@ void loop()
       tft.setCursor(80, 192);
       tft.setTextSize(2);
       tft.setTextColor(ILI9341_WHITE, 0x630C);
-      tft.println(cumulativeCount);                      // display total counts since reset
+      tft.println(cumulativeCount); // display total counts since reset
 
       tft.setCursor(80, 222);
-      tft.println(totalDose);                            // display cumulative dose
+      tft.println(totalDose); // display cumulative dose
 
       tft.setCursor(44, 52);
       tft.setTextSize(5);
-      tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND); 
-      tft.println(dose);                                  // display effective dose rate
+      tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND);
+      tft.println(dose); // display effective dose rate
       tft.setTextSize(1);
 
-      if (doseLevel != previousDoseLevel)   // only update alert level if it changed. This prevents flicker
+      if (doseLevel != previousDoseLevel) // only update alert level if it changed. This prevents flicker
       {
         if (doseLevel == 0)
         {
@@ -414,11 +418,11 @@ void loop()
           previousDoseLevel = doseLevel;
         }
       }
-    }       // end of millis()-controlled block that runs once every second. The rest of the code on page 0 runs every loop
+    } // end of millis()-controlled block that runs once every second. The rest of the code on page 0 runs every loop
     if (currentCount > previousCount)
     {
       if (ledSwitch)
-        digitalWrite(D3, HIGH);                 // trigger buzzer and led if they are activated
+        digitalWrite(D3, HIGH); // trigger buzzer and led if they are activated
       if (buzzerSwitch)
         digitalWrite(D0, HIGH);
       previousCount = currentCount;
@@ -427,26 +431,26 @@ void loop()
     currentMicros = micros();
     if (currentMicros - previousMicros >= 200)
     {
-      digitalWrite(D3, LOW);            
+      digitalWrite(D3, LOW);
       digitalWrite(D0, LOW);
       previousMicros = currentMicros;
     }
 
     if (!ts.touched())
       wasTouched = 0;
-    if (ts.touched() && !wasTouched)     // A way of "debouncing" the touchscreen. Prevents multiple inputs from single touch
+    if (ts.touched() && !wasTouched) // A way of "debouncing" the touchscreen. Prevents multiple inputs from single touch
     {
       wasTouched = 1;
       TS_Point p = ts.getPoint();
-      x = map(p.x, TS_MINX, TS_MAXX, 240, 0);    // get touch point and map to screen pixels
+      x = map(p.x, TS_MINX, TS_MAXX, 240, 0); // get touch point and map to screen pixels
       y = map(p.y, TS_MINY, TS_MAXY, 320, 0);
 
-      if ((x > 162 && x < 238) && (y > 259 && y < 318))  
+      if ((x > 162 && x < 238) && (y > 259 && y < 318))
       {
-        integrationMode = !integrationMode;                  
+        integrationMode = !integrationMode;
         currentCount = 0;
         previousCount = 0;
-        for (int a = 0; a < 60; a++)    // reset counts when integretation speed is changed
+        for (int a = 0; a < 60; a++) // reset counts when integretation speed is changed
         {
           count[a] = 0;
         }
@@ -454,7 +458,7 @@ void loop()
         {
           fastCount[b] = 0;
         }
-        if (integrationMode == 0)  // change button based on touch and previous state
+        if (integrationMode == 0) // change button based on touch and previous state
         {
           tft.fillRoundRect(162, 259, 75, 57, 3, 0x2A86);
           tft.setFont(&FreeSans12pt7b);
@@ -475,7 +479,7 @@ void loop()
           tft.println("MODE");
         }
       }
-      else if ((x > 64 && x < 159) && (y > 259 && y < 318))   // reset count
+      else if ((x > 64 && x < 159) && (y > 259 && y < 318)) // reset count
       {
         currentCount = 0;
         previousCount = 0;
@@ -488,7 +492,7 @@ void loop()
           fastCount[b] = 0;
         }
       }
-      else if ((x > 190 && x < 238) && (y > 151 && y < 202))  // toggle LED
+      else if ((x > 190 && x < 238) && (y > 151 && y < 202)) // toggle LED
       {
         ledSwitch = !ledSwitch;
         if (ledSwitch)
@@ -502,7 +506,7 @@ void loop()
           tft.drawBitmap(190, 153, ledOffBitmap, 45, 45, ILI9341_WHITE);
         }
       }
-      else if ((x > 190 && x < 238) && (y > 205 && y < 256))      // toggle buzzer
+      else if ((x > 190 && x < 238) && (y > 205 && y < 256)) // toggle buzzer
       {
         buzzerSwitch = !buzzerSwitch;
         if (buzzerSwitch)
@@ -516,14 +520,14 @@ void loop()
           tft.drawBitmap(190, 208, buzzerOffBitmap, 45, 45, ILI9341_WHITE);
         }
       }
-      else if ((x > 3 && x < 61) && (y > 259 && y < 316))     // settings button pressed
+      else if ((x > 3 && x < 61) && (y > 259 && y < 316)) // settings button pressed
       {
         page = 1;
         drawSettingsPage();
       }
     }
   }
-  else if (page == 1)    // settings page. all display elements are drawn when drawSettingsPage() is called
+  else if (page == 1) // settings page. all display elements are drawn when drawSettingsPage() is called
   {
     if (!ts.touched())
       wasTouched = 0;
@@ -534,7 +538,7 @@ void loop()
       x = map(p.x, TS_MINX, TS_MAXX, 240, 0);
       y = map(p.y, TS_MINY, TS_MAXY, 320, 0);
 
-      if ((x > 6 && x < 71) && (y > 250 && y < 315))        // back button. draw homepage, reset counts and go back
+      if ((x > 6 && x < 71) && (y > 250 && y < 315)) // back button. draw homepage, reset counts and go back
       {
         page = 0;
         drawHomePage();
@@ -542,7 +546,7 @@ void loop()
         previousCount = 0;
         for (int a = 0; a < 60; a++)
         {
-          count[a] = 0;                         // counts need to be reset to prevent errorenous readings
+          count[a] = 0; // counts need to be reset to prevent errorenous readings
         }
         for (int b = 0; b < 4; b++)
         {
@@ -566,7 +570,7 @@ void loop()
       }
     }
   }
-  else if (page == 2)      // units page
+  else if (page == 2) // units page
   {
     if (!ts.touched())
       wasTouched = 0;
@@ -577,12 +581,12 @@ void loop()
       x = map(p.x, TS_MINX, TS_MAXX, 240, 0);
       y = map(p.y, TS_MINY, TS_MAXY, 320, 0);
 
-      if ((x > 6 && x < 71) && (y > 250 && y < 315))     // back button
+      if ((x > 6 && x < 71) && (y > 250 && y < 315)) // back button
       {
         page = 1;
-        if (EEPROM.read(saveUnits) != doseUnits)         // check current EEPROM value and only write if new value is different
+        if (EEPROM.read(saveUnits) != doseUnits) // check current EEPROM value and only write if new value is different
         {
-          EEPROM.write(saveUnits, doseUnits);             // save current units to EEPROM during exit. This will be retrieved at startup
+          EEPROM.write(saveUnits, doseUnits); // save current units to EEPROM during exit. This will be retrieved at startup
           EEPROM.commit();
         }
         drawSettingsPage();
@@ -635,8 +639,8 @@ void loop()
         page = 1;
         if (EEPROM.read(saveAlertThreshold) != alarmThreshold)
         {
-          EEPROM.write(saveAlertThreshold, alarmThreshold); 
-          EEPROM.commit();                    // save to EEPROM to be retrieved at startup
+          EEPROM.write(saveAlertThreshold, alarmThreshold);
+          EEPROM.commit(); // save to EEPROM to be retrieved at startup
         }
         drawSettingsPage();
       }
@@ -653,7 +657,6 @@ void loop()
           alarmThreshold = 2;
       }
     }
-   
   }
   else if (page == 4)
   {
@@ -695,13 +698,12 @@ void loop()
           conversionFactor = 1;
       }
     }
-  
   }
 }
 
-void drawHomePage()  
+void drawHomePage()
 {
-  tft.fillRect(2, 21, 236, 298 ,ILI9341_BLACK);
+  tft.fillRect(2, 21, 236, 298, ILI9341_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), ILI9341_WHITE);
 
   tft.drawRoundRect(210, 4, 26, 14, 3, ILI9341_WHITE);
@@ -786,7 +788,7 @@ void drawHomePage()
     tft.setCursor(169, 284);
     tft.println("FAST");
     tft.setCursor(164, 309);
-    tft.println("MODE"); 
+    tft.println("MODE");
   }
   if (ledSwitch)
   {
@@ -815,11 +817,11 @@ void drawSettingsPage()
   digitalWrite(D3, LOW);
   digitalWrite(D0, LOW);
 
-  tft.fillRect(2, 21, 236, 298 ,ILI9341_BLACK);
+  tft.fillRect(2, 21, 236, 298, ILI9341_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), ILI9341_WHITE);
 
   tft.drawRoundRect(210, 4, 26, 14, 3, ILI9341_WHITE);
-  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE);         // Battery symbol
+  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE); // Battery symbol
   tft.drawLine(208, 8, 208, 13, ILI9341_WHITE);
   tft.fillRect(212, 6, 22, 10, ILI9341_BLACK);
   tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);
@@ -858,15 +860,15 @@ void drawSettingsPage()
 
   tft.fillCircle(38, 282, 30, 0x3B8F);
   tft.drawBitmap(6, 250, backBitmap, 65, 65, ILI9341_WHITE);
-} 
+}
 
 void drawUnitsPage()
 {
-  tft.fillRect(2, 21, 236, 298 ,ILI9341_BLACK);
+  tft.fillRect(2, 21, 236, 298, ILI9341_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), ILI9341_WHITE);
 
   tft.drawRoundRect(210, 4, 26, 14, 3, ILI9341_WHITE);
-  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE);         // Battery symbol
+  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE); // Battery symbol
   tft.drawLine(208, 8, 208, 13, ILI9341_WHITE);
   tft.fillRect(212, 6, 22, 10, ILI9341_BLACK);
   tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);
@@ -892,7 +894,7 @@ void drawUnitsPage()
   tft.drawBitmap(6, 250, backBitmap, 65, 65, ILI9341_WHITE);
 
   tft.drawRoundRect(3, 70, 234, 50, 4, WHITE);
-  if (doseUnits == 0) 
+  if (doseUnits == 0)
     tft.fillRoundRect(4, 71, 232, 48, 4, 0x2A86);
   tft.setCursor(30, 103);
   tft.println("Sieverts (uSv/hr)");
@@ -902,16 +904,15 @@ void drawUnitsPage()
     tft.fillRoundRect(4, 128, 232, 48, 4, 0x2A86);
   tft.setCursor(47, 160);
   tft.println("Rem (mR/hr)");
-
 }
 
 void drawAlertPage()
 {
-  tft.fillRect(2, 21, 236, 298 ,ILI9341_BLACK);
+  tft.fillRect(2, 21, 236, 298, ILI9341_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), ILI9341_WHITE);
 
   tft.drawRoundRect(210, 4, 26, 14, 3, ILI9341_WHITE);
-  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE);         // Battery symbol
+  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE); // Battery symbol
   tft.drawLine(208, 8, 208, 13, ILI9341_WHITE);
   tft.fillRect(212, 6, 22, 10, ILI9341_BLACK);
   tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);
@@ -954,11 +955,11 @@ void drawAlertPage()
 
 void drawCalibrationPage()
 {
-  tft.fillRect(2, 21, 236, 298 ,ILI9341_BLACK);
+  tft.fillRect(2, 21, 236, 298, ILI9341_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), ILI9341_WHITE);
 
   tft.drawRoundRect(210, 4, 26, 14, 3, ILI9341_WHITE);
-  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE);         // Battery symbol
+  tft.drawLine(209, 8, 209, 13, ILI9341_WHITE); // Battery symbol
   tft.drawLine(208, 8, 208, 13, ILI9341_WHITE);
   tft.fillRect(212, 6, 22, 10, ILI9341_BLACK);
   tft.fillRect(batteryMapped, 6, (234 - batteryMapped), 10, ILI9341_GREEN);
@@ -1001,10 +1002,9 @@ void drawCalibrationPage()
   tft.setCursor(178, 232);
   tft.println("-");
   tft.setTextSize(1);
-
 }
 
-void isr()  // interrupt service routine 
+void isr() // interrupt service routine
 {
   currentCount++;
   cumulativeCount++;
