@@ -5,6 +5,7 @@
     Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
 */
 #include <Arduino.h>
+#include <ESP8266WiFi.h>
 #include <EEPROM.h>
 #include "SPI.h"
 #include "Adafruit_GFX.h"
@@ -259,6 +260,9 @@ void setup()
 
   Serial.println("Begin");
   attachInterrupt(interruptPin, isr, FALLING);
+
+  WiFi.mode( WIFI_OFF );                // turn off wifi
+  WiFi.forceSleepBegin();
 
   drawHomePage();
 }
