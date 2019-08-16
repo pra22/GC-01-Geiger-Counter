@@ -339,7 +339,8 @@ void loop()
       {
         dtostrf(doseRate, 4, 0, dose); // whole numbers only when dose is higher than 100
       }
-
+      
+      tft.setFont();
       tft.setCursor(44, 52);
       tft.setTextSize(5);
       tft.setTextColor(ILI9341_WHITE, DOSEBACKGROUND);
@@ -351,6 +352,7 @@ void loop()
       tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
       tft.setTextSize(3);
       tft.println(averageCount); // Display CPM
+
       if (averageCount < 10)
       {
         tft.fillRect(92, 120, 100, 25, ILI9341_BLACK); // erase numbers that may have been left from previous high readings
